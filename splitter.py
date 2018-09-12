@@ -7,7 +7,8 @@ INFINITY = 999999
 
 STATE_0_INIT = 0
 STATE_1_SONG_LIST = 1
-STATE_2_SONG_DATA = 2
+STATE_2_SONG_HEADERS = 2
+STATE_3_FRAMES = 3
 
 
 def process(contents, args, outtmpl):
@@ -17,6 +18,7 @@ def process(contents, args, outtmpl):
 
 
 def single_pass(contents, start, finish, outfile):
+  count = 0
   if finish is None:
     finish = INFINITY
   accum = []
@@ -26,15 +28,31 @@ def single_pass(contents, start, finish, outfile):
       state = STATE_1_SONG_LIST
     elif state == STATE_1_SONG_LIST:
       if not line:
-        state = STATE_2_SONG_DATA
+        count = 0
+        state = STATE_2_SONG_HEADERS
       else:
         m = re.match(r'^\t.word ft_song_(\d+)$', line)
         if not m:
           raise RuntimeError('Did not match "%s"' % line)
         num = int(m.group(1))
-        if num < start or num >= finish:
+        if num < start:
           line = '\t.word 0'
-    accum.append(line)
+        elif num >= finish:
+          line = None
+    elif state == STATE_2_SONG_HEADERS:
+      if not line:
+        count += 1
+        if count >= 2:
+          state = STATE_3_FRAMES
+      else:
+        count = 0
+    elif state == STATE_3_FRAMES:
+      m = re.match(r'^ft_s(\d+)_frames:$', line)
+      if not m:
+        raise RuntimeError('Did not match "%s"' % line)
+
+    if line is not None:
+      accum.append(line)
   write_output(accum, outfile)
 
 
@@ -46,6 +64,11 @@ def write_output(accum, outfile):
 
 
 def run():
+  if len(sys.argv) < 4:
+    sys.stderr.write("""
+Usage: python splitter.py [music.asm] [split0,split1] [output_template]
+""")
+    sys.exit(1)
   fp = open(sys.argv[1], 'r')
   contents = fp.read()
   fp.close()
