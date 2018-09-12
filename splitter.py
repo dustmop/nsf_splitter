@@ -20,17 +20,24 @@ def process(contents, args, outtmpl):
 
 def single_pass(contents, start, finish, outfile):
   count = 0
+  ignoring = False
   curr_song = None
   if finish is None:
     finish = INFINITY
   accum = []
   state = STATE_0_INIT
   for line in contents.split('\n'):
-    if line.startswith('ft_song_list:'):
-      state = STATE_1_SONG_LIST
+    if state == STATE_0_INIT:
+      # STATE 0
+      # Skip the module headers until we reach the song_list.
+      if line.startswith('ft_song_list:'):
+        state = STATE_1_SONG_LIST
     elif state == STATE_1_SONG_LIST:
+      # STATE 1
+      # The list of songs in the module, with pointers to their data.
       if not line:
         count = 0
+        ignoring = False
         state = STATE_2_SONG_HEADERS
       else:
         m = re.match(r'^\t.word ft_song_(\d+)$', line)
@@ -42,6 +49,8 @@ def single_pass(contents, start, finish, outfile):
         elif num >= finish:
           line = None
     elif state == STATE_2_SONG_HEADERS:
+      # STATE 2
+      # The headers for each individual song.
       if not line:
         count += 1
         # Two blank lines separate song headers from the per-song frames.
@@ -49,8 +58,16 @@ def single_pass(contents, start, finish, outfile):
           state = STATE_3_FRAMES
       else:
         count = 0
-      # TODO: Ignore song headers for songs outside the range we care about.
+      # Ignore song headers for those outside of the range we care about.
+      m = re.match(r'^ft_song_(\d+):', line)
+      if m:
+        num = int(m.group(1))
+        ignoring = num < start or num >= finish
+      if ignoring:
+        line = None
     elif state == STATE_3_FRAMES:
+      # STATE 3
+      # Frame data for each song.
       m = re.match(r'^ft_s(\d+)_frames:', line)
       if m:
         curr_song = int(m.group(1))
@@ -63,6 +80,7 @@ def single_pass(contents, start, finish, outfile):
         line = None
       # TODO: Accumulate pattern and column data in case other songs use them.
     elif state == STATE_4_DPCM:
+      # STATE 4
       # Remove all DPCM data.
       line = None
     if line is not None:
