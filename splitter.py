@@ -9,6 +9,7 @@ STATE_0_INIT = 0
 STATE_1_SONG_LIST = 1
 STATE_2_SONG_HEADERS = 2
 STATE_3_FRAMES = 3
+STATE_4_DPCM = 4
 
 
 def process(contents, args, outtmpl):
@@ -19,6 +20,7 @@ def process(contents, args, outtmpl):
 
 def single_pass(contents, start, finish, outfile):
   count = 0
+  curr_song = None
   if finish is None:
     finish = INFINITY
   accum = []
@@ -42,15 +44,27 @@ def single_pass(contents, start, finish, outfile):
     elif state == STATE_2_SONG_HEADERS:
       if not line:
         count += 1
+        # Two blank lines separate song headers from the per-song frames.
         if count >= 2:
           state = STATE_3_FRAMES
       else:
         count = 0
+      # TODO: Ignore song headers for songs outside the range we care about.
     elif state == STATE_3_FRAMES:
-      m = re.match(r'^ft_s(\d+)_frames:$', line)
-      if not m:
-        raise RuntimeError('Did not match "%s"' % line)
-
+      m = re.match(r'^ft_s(\d+)_frames:', line)
+      if m:
+        curr_song = int(m.group(1))
+      m = re.match(r'^; DPCM samples', line)
+      if m:
+        state = STATE_4_DPCM
+        line = None
+      # Ignore song data for songs outside the range we care about.
+      if curr_song is not None and (curr_song < start or curr_song >= finish):
+        line = None
+      # TODO: Accumulate pattern and column data in case other songs use them.
+    elif state == STATE_4_DPCM:
+      # Remove all DPCM data.
+      line = None
     if line is not None:
       accum.append(line)
   write_output(accum, outfile)
