@@ -115,16 +115,15 @@ def single_pass(contents, start, finish, outfile):
       line = None
     if line is not None:
       accum.append(line)
-  errors = []
+  accum.append('')
+  accum.append('')
+  # Any data dependended upon, but not generated for this song range, is here
+  # retrieved from symbols, and then appended to the output
   for sym in dependencies:
     if sym not in generated:
-      errors.append(sym)
-  if errors:
-    print('========================================')
-    print('Out: %s' % outfile)
-    errors.sort()
-    for e in errors:
-      print('Undefined: %s' % e)
+      rows = symbols[sym]
+      accum.append(sym)
+      accum += rows
   write_output(accum, outfile)
 
 
