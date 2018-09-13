@@ -1,3 +1,4 @@
+import collections
 import re
 import sys
 
@@ -22,6 +23,14 @@ def single_pass(contents, start, finish, outfile):
   count = 0
   ignoring = False
   curr_song = None
+  curr_label = None
+  # Store rows of byte data for song columns.
+  symbols = collections.defaultdict(list)
+  # Track what data the song range is dependent upon.
+  dependencies = set()
+  # Track what data is generated for the song range. Anything missing that is
+  # in the `dependencies` will be included using `symbols`.
+  generated = set()
   if finish is None:
     finish = INFINITY
   accum = []
@@ -75,16 +84,47 @@ def single_pass(contents, start, finish, outfile):
       if m:
         state = STATE_4_DPCM
         line = None
-      # Ignore song data for songs outside the range we care about.
-      if curr_song is not None and (curr_song < start or curr_song >= finish):
-        line = None
-      # TODO: Accumulate pattern and column data in case other songs use them.
+      # This check handles lines before the frames begin, and after DPCM starts.
+      if curr_song is not None and line is not None:
+        # Match label as something being defined.
+        m = re.match(r'^(ft_s.*):', line)
+        if m:
+          curr_label = m.group(1)
+        # Match byte to defined data to save. Might be outside the song range.
+        m = re.match(r'^\t\.byte', line)
+        if m:
+          symbols[curr_label].append(line)
+        # Don't output lines for songs outside the range we care about.
+        if curr_song < start or curr_song >= finish:
+          line = None
+        elif curr_label:
+          generated.add(curr_label)
+          # Match word as pointer to data we depend on. Only track dependencies
+          # for songs in the current range, but the data depended upon may be
+          # outside the range, which is what `symbols` above handles.
+          m = re.match(r'^\t\.word (.*)', line)
+          if m:
+            text = m.group(1)
+            labels = [e.strip() for e in text.split(',')]
+            for lbl in labels:
+              if lbl not in dependencies:
+                dependencies.add(lbl)
     elif state == STATE_4_DPCM:
       # STATE 4
       # Remove all DPCM data.
       line = None
     if line is not None:
       accum.append(line)
+  errors = []
+  for sym in dependencies:
+    if sym not in generated:
+      errors.append(sym)
+  if errors:
+    print('========================================')
+    print('Out: %s' % outfile)
+    errors.sort()
+    for e in errors:
+      print('Undefined: %s' % e)
   write_output(accum, outfile)
 
 
