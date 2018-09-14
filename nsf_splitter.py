@@ -17,6 +17,7 @@ def process(contents, args, outtmpl):
   args = [0] + args + [INFINITY]
   for i in xrange(len(args) - 1):
     single_pass(contents, args[i], args[i + 1], outtmpl.replace('%d', '%d' % i))
+  dpcm_pass(contents, outtmpl.replace('%d', 'dpcm'))
 
 
 def single_pass(contents, start, finish, outfile):
@@ -124,6 +125,18 @@ def single_pass(contents, start, finish, outfile):
       rows = symbols[sym]
       accum.append(sym)
       accum += rows
+  write_output(accum, outfile)
+
+
+def dpcm_pass(contents, outfile):
+  accum = []
+  ignoring = True
+  for line in contents.split('\n'):
+    m = re.match(r'^; DPCM samples \(located at DPCM segment\)', line)
+    if m:
+      ignoring = False
+    if not ignoring:
+      accum.append(line)
   write_output(accum, outfile)
 
 
