@@ -137,7 +137,7 @@ def write_output(accum, outfile):
 def run():
   if len(sys.argv) < 4:
     sys.stderr.write("""
-Usage: python splitter.py [music.asm] [split0,split1] [output_template]
+Usage: python nsf_splitter.py [music.asm] [split0,split1] [output_template]
 """)
     sys.exit(1)
   fp = open(sys.argv[1], 'r')
