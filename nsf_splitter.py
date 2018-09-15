@@ -135,6 +135,8 @@ def dpcm_pass(contents, outfile):
     m = re.match(r'^; DPCM samples \(located at DPCM segment\)', line)
     if m:
       ignoring = False
+    if 'segment' in line:
+      continue
     if not ignoring:
       accum.append(line)
   write_output(accum, outfile)
