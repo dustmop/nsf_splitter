@@ -123,7 +123,7 @@ def single_pass(contents, start, finish, outfile):
   for sym in dependencies:
     if sym not in generated:
       rows = symbols[sym]
-      accum.append(sym)
+      accum.append('%s:' % sym)
       accum += rows
   write_output(accum, outfile)
 
